@@ -3,8 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Módulo de Asignación y Gestión</title>
     
+    <!-- Título de la aplicación -->
+    <title>Módulo de Asignación y Gestión 27-A | CUGDL</title>
+
+    <!-- Logo en la pestaña del navegador -->
+    <link rel="icon" type="image/jpeg" href="./cugdl.jpg">
+
     <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1316,27 +1321,19 @@
             let chartAulas, chartMaterias, chartProfes, chartProgramas, chartDepartamentos;
 
             // ======================================================================
-            // 1. INICIALIZACIÓN Y CONFIGURACIÓN 
+            // 1. INICIALIZACIÓN Y CONFIGURACIÓN DESDE BÓVEDA 2027A
             // ======================================================================
-            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbzWpNK9AfaaANNxPtOLibjvqlcFooNYdwLWKLql0qTE8Ub1ksAqedNdQrykDohAvErFzg/exec";
+            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbwXvsVNBk0_9Eap-FKmbyKXs3ffQmKrZy0_bnqGnB6jJtYQGEyZskBlRrQe1tvCH450rQ/exec";
 
             window.onload = function () {
-                let pCat = $http.get("categorias_profesores.json").catch(function() { return { data: { categorias: [] } }; });
-                let pAul = $http.get("aulas.json").catch(function() { return { data: [] }; });
-
-                // Agregamos un cache buster para que siempre traiga los roles más frescos
                 let cacheBuster = "&t=" + new Date().getTime();
 
                 $q.all([
                     $http.get(BOVEDA_URL + "?archivo=config" + cacheBuster),
-                    $http.get(BOVEDA_URL + "?archivo=auth_roles" + cacheBuster),
-                    pCat, pAul
+                    $http.get(BOVEDA_URL + "?archivo=auth_roles" + cacheBuster)
                 ]).then(function(res) {
                     $scope.config = res[0].data;
                     $scope.rolesData = res[1].data;
-                    $scope.listaCategoriasOficiales = res[2].data.categorias || [];
-                    $scope.listaAulas = res[3].data || [];
-
                     google.accounts.id.initialize({ client_id: $scope.config.CLIENT_ID, callback: handleCredentialResponse });
                     google.accounts.id.renderButton(document.getElementById("googleButtonDiv"), { theme: "outline", size: "large", width: 300 });
                 }).catch(function(error) {
@@ -1535,46 +1532,75 @@
             };
 
             // ======================================================================
-            // 5. DATA MERGING & CÁLCULOS CENTRALIZADOS
+            // 5. DATA MERGING & CÁLCULOS CENTRALIZADOS RELACIONALES (2027A)
             // ======================================================================
             $scope.sincronizarSistema = function() {
                 if(!$scope.config.API_URL) return;
                 $scope.cargandoDatos = true;
-                let promesaHistorico = $http.get("BD_Profesores_Historico.json").catch(function() { return { data: [] }; });
 
-                $q.all([
-                    $http.get("BD_2026B.json"), 
-                    $http.get("BD_Profesores_2026B.json"), 
-                    $http.get($scope.config.API_URL),
-                    promesaHistorico
-                ]).then(function(respuestas) {
-                    let resGrupos = respuestas[0].data; let resProfesores = respuestas[1].data; let resBackend = respuestas[2].data; let resHistorico = respuestas[3].data;
+                $http.get($scope.config.API_URL).then(function(res) {
+                    let resBackend = res.data;
                     if (resBackend.status === 'error') { alert("Error servidor: " + resBackend.message); $scope.cargandoDatos = false; return; }
 
-                    let asignacionesTodas = resBackend.asignaciones || []; 
-                    let estadoProfesores = resBackend.profesores || [];
-                    let profesoresExtraBackend = resBackend.profesores_extra || []; 
+                    // 1. Asignar catálogos unificados desde la API
+                    $scope.listaCategoriasOficiales = resBackend.categorias.map(c => c.categorias);
+                    $scope.listaAulas = resBackend.aulas_catalogo;
+
+                    $scope.asignacionesGlobales = resBackend.asignaciones || []; 
+                    $scope.descargasGlobales = resBackend.descargas || []; 
                     $scope.aulasAsignadasServer = resBackend.aulas_asignadas || [];
                     
-                    $scope.asignacionesGlobales = asignacionesTodas;
-                    $scope.descargasGlobales = resBackend.descargas || []; // Todas (incluye canceladas)
-                    
-                    $scope.catalogoGruposOriginal = angular.isArray(resGrupos) ? resGrupos : (resGrupos.registros || []);
-                    let catalogoProfesoresOficial = angular.isArray(resProfesores) ? resProfesores : (resProfesores.registros || []);
-                    let catalogoHistorico = angular.isArray(resHistorico) ? resHistorico : (resHistorico.registros || []);
+                    // 2. Mapeo estructural: Convertimos la tabla "Materias" al formato frontend
+                    $scope.catalogoGruposOriginal = resBackend.materias.map(m => ({
+                        id: m.id_materia,
+                        crn: m.crn,
+                        clave: m.clave,
+                        materia: m.materia,
+                        grupo: m.grupo,
+                        programa_educativo: m.pe,
+                        carga_horaria: m.carga_horaria,
+                        hora_inicio: m.hora_inicio,
+                        hora_fin: m.hora_termino,
+                        departamento: m.departamento_materia,
+                        tipo_aula: m.tipo_espacio,
+                        cupo: m.cupo,
+                        // Convertir la columna DIA a booleanos para que funcionen los filtros visuales intactos
+                        l: m.dia && m.dia.includes('L') ? 'L' : '',
+                        m: m.dia && m.dia.includes('M') ? 'M' : '',
+                        i: m.dia && m.dia.includes('I') ? 'I' : '',
+                        j: m.dia && m.dia.includes('J') ? 'J' : '',
+                        v: m.dia && m.dia.includes('V') ? 'V' : '',
+                        s: m.dia && m.dia.includes('S') ? 'S' : ''
+                    }));
 
-                    // Grupos Libres
-                    let crnsAsignados = $scope.asignacionesGlobales.map(a => (a.crn || "").toString());
-                    $scope.registrosBD = $scope.catalogoGruposOriginal.filter(g => !crnsAsignados.includes((g.crn || "").toString()));
-                    
-                    let todosLosProfes = catalogoProfesoresOficial.map(p => { p.origen = "CATALOGO"; return p; });
-                    profesoresExtraBackend.forEach(pe => { todosLosProfes.push({ codigo: pe.codigo, profesor: pe.profesor, categoria: pe.categoria, origen: pe.tipo_registro, departamento_adscripcion: "-" }); });
+                    // 3. Generar catálogo de Profesores unificado 
+                    let todosLosProfes = resBackend.profesores_catalogo.map(p => ({
+                        id_profesor: p.id_profesor, // <-- ID INTERNO RELACIONAL
+                        codigo: p.codigo,           // <-- CÓDIGO UDG REAL PARA LA INTERFAZ
+                        profesor: p.profesor,
+                        categoria: p.categoría || p.categoria,
+                        tipo_categoria: p.tipo_categoria,
+                        departamento_adscripcion: p.departamento_adscripcion,
+                        anios_antiguedad: p['años_antiguedad'] || 0,
+                        carga_minima_obligatoria: p['carga_mínima_obligatoria_(ptc)'],
+                        origen: "CATALOGO"
+                    }));
 
-                    // CALCULAR CARGAS EFECTIVAS AGRUPANDO POR CRN
+                    if (resBackend.profesores_extra) {
+                        resBackend.profesores_extra.forEach(pe => { 
+                            let nombreEstructurado = `${pe.paterno || ''} ${pe.materno || ''} ${pe.nombre || ''}`.trim().replace(/\s+/g, ' ');
+                            todosLosProfes.push({ id_profesor: pe.codigo, codigo: pe.codigo, profesor: nombreEstructurado, categoria: pe.categoria, origen: pe.tipo, departamento_adscripcion: "-" }); 
+                        });
+                    }
+
+                    // 4. Filtrar Grupos Libres
+                    let idsAsignados = $scope.asignacionesGlobales.map(a => (a.id_materia || "").toString());
+                    $scope.registrosBD = $scope.catalogoGruposOriginal.filter(g => !idsAsignados.includes((g.id || "").toString()));
+                    
+                    // 5. Calcular Cargas Efectivas iterando el JSON relacional
                     $scope.profesoresBD = todosLosProfes.map(pBase => {
-                        let baseCodStr = (pBase.codigo || "").toString();
-                        let pLive = estadoProfesores.find(pb => (pb.codigo_profesor || "").toString() === baseCodStr);
-                        let pHist = catalogoHistorico.find(ph => (ph.CODIGO || "").toString() === baseCodStr || (ph.codigo || "").toString() === baseCodStr);
+                        let baseIdStr = (pBase.id_profesor || "").toString(); // <-- LA LÓGICA DE CARGA USA EL ID INTERNO
+                        let pHist = (resBackend.profesores_historico || []).find(ph => (ph.codigo || "").toString() === (pBase.codigo || "").toString());
                         
                         let nominal_carga = 0; let nominal_grupos = 0;
                         let h_desc = 0; let g_desc = 0;
@@ -1584,34 +1610,22 @@
                         let crns_unicos_cubre = new Set();
 
                         $scope.asignacionesGlobales.forEach(a => {
-                            let key = (a.crn || a.id_registro_json).toString();
-                            let c = parseFloat(a.carga_horaria_fila) || 0;
+                            let key = (a.crn || "").toString(); // <-- AHORA AGRUPA POR CRN PARA EL CONTEO
+                            let c = parseFloat(a.carga) || 0;
 
-                            if ((a.codigo_profesor || "").toString() === baseCodStr) {
-                                // La carga se suma en CADA fila (cada día es una fila independiente)
+                            if ((a.id_profesor || "").toString() === baseIdStr) {
                                 nominal_carga += c;
-                                // El grupo (CRN) solo se cuenta UNA vez
-                                if (!crns_unicos_propios.has(key)) {
-                                    crns_unicos_propios.add(key);
-                                    nominal_grupos++;
-                                }
-                                if (a.tipo_asignacion === 'DESCARGA') {
-                                    h_desc += c;           // acumula horas de descarga por cada fila/día
-                                    if (!crns_unicos_propios.has(key + '_desc')) {
-                                        crns_unicos_propios.add(key + '_desc');
-                                        g_desc++;          // el grupo descargado se cuenta una sola vez
-                                    }
+                                if (!crns_unicos_propios.has(key)) { crns_unicos_propios.add(key); nominal_grupos++; }
+                                if (a.tipo_asig === 'DESCARGA') {
+                                    h_desc += c;
+                                    if (!crns_unicos_propios.has(key + '_desc')) { crns_unicos_propios.add(key + '_desc'); g_desc++; }
                                 }
                             }
-                            if ((a.codigo_profesor_cubre || "").toString() === baseCodStr && a.tipo_asignacion === 'DESCARGA') {
-                                // Igual: horas se suman por fila, grupos se cuentan una vez
+                            if ((a.id_prof_cubre || "").toString() === baseIdStr && a.tipo_asig === 'DESCARGA') {
                                 h_cob += c;
-                                if (!crns_unicos_cubre.has(key)) {
-                                    crns_unicos_cubre.add(key);
-                                    g_cob++;
-                                }
+                                if (!crns_unicos_cubre.has(key)) { crns_unicos_cubre.add(key); g_cob++; }
                             }
-                        });
+                        });             
 
                         pBase.horas_descarga = h_desc;
                         pBase.grupos_descargados = g_desc;
@@ -1619,68 +1633,59 @@
                         pBase.grupos_asignados = nominal_grupos + g_cob; 
                         pBase.grupos_efectivos = pBase.grupos_asignados - g_desc;
 
-                        pBase.anios_antiguedad = pBase.años_antiguedad || pBase.anos_antiguedad || 0;
-                        pBase.hist_2024b = pHist ? (pHist['2024B'] || pHist['2024b'] || 0) : 0;
-                        pBase.hist_2025a = pHist ? (pHist['2025A'] || pHist['2025a'] || 0) : 0;
-                        pBase.hist_2025b = pHist ? (pHist['2025B'] || pHist['2025b'] || 0) : 0;
-                        pBase.hist_2026a = pHist ? (pHist['2026A'] || pHist['2026a'] || 0) : 0;
+                        pBase.hist_2024b = pHist ? (pHist['2024b'] || 0) : 0;
+                        pBase.hist_2025a = pHist ? (pHist['2025a'] || 0) : 0;
+                        pBase.hist_2025b = pHist ? (pHist['2025b'] || 0) : 0;
+                        pBase.hist_2026a = pHist ? (pHist['2026a'] || 0) : 0;
                         return pBase;
                     });
 
-                    // AGRUPACIÓN MIS ASIGNACIONES (DÍAS CONCATENADOS)
+                    // 6. Agrupación para "Mis Asignaciones"
                     let agrupados = {};
                     $scope.asignacionesGlobales.forEach(a => {
-                        let aCrnStr = (a.crn || "").toString();
-                        if (aCrnStr === "") return; 
-                        if (!agrupados[aCrnStr]) {
-                            let profInfo = $scope.profesoresBD.find(p => (p.codigo || "").toString() === (a.codigo_profesor || "").toString());
-                            let infoBase = $scope.catalogoGruposOriginal.find(g => (g.crn || "").toString() === aCrnStr);
-                            let hInicio = infoBase ? infoBase.hora_inicio : a.hora_inicio;
-                            let hFin = infoBase ? infoBase.hora_fin : a.hora_fin;
-                            agrupados[aCrnStr] = {
-                                crn: a.crn, clave_materia: a.clave_materia, 
-                                materia: a.materia || (infoBase ? infoBase.materia : "Materia Desconocida"), 
-                                programa_educativo: infoBase ? infoBase.programa_educativo : "-", // <-- DATO NUEVO
+                        let aIdStr = (a.id_materia || "").toString();
+                        if (aIdStr === "") return; 
+                        if (!agrupados[aIdStr]) {
+                            let profInfo = $scope.profesoresBD.find(p => (p.codigo || "").toString() === (a.id_profesor || "").toString());
+                            let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
+                            agrupados[aIdStr] = {
+                                crn: a.crn, clave_materia: a.clave, materia: a.materia, 
+                                programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                 dias_lista: [],
-                                horario: $scope.formatHoraLimpia(hInicio) + " - " + $scope.formatHoraLimpia(hFin),
-                                codigo_profesor: a.codigo_profesor, nombre_profesor: a.nombre_profesor, 
-                                tipo_asignacion: a.tipo_asignacion || "-", carga_total: 0, 
+                                horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
+                                codigo_profesor: a.id_profesor, nombre_profesor: a.nom_prof, 
+                                tipo_asignacion: a.tipo_asig || "-", carga_total: 0, 
                                 departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
                                 departamento_profesor: profInfo ? profInfo.departamento_adscripcion : '-',
-                                id_registro_json: infoBase ? infoBase.id : (a.id_registro_json || null)
+                                id_registro_json: a.id_materia
                             };
                         }
-                        agrupados[aCrnStr].carga_total += parseFloat(a.carga_horaria_fila) || 0;
-                        let diaFormateado = a.dias_imparticion;
-                        if(!agrupados[aCrnStr].dias_lista.includes(diaFormateado) && diaFormateado) agrupados[aCrnStr].dias_lista.push(diaFormateado);
+                        agrupados[aIdStr].carga_total += parseFloat(a.carga) || 0;
+                        let diaFormateado = a.dias;
+                        if(!agrupados[aIdStr].dias_lista.includes(diaFormateado) && diaFormateado) agrupados[aIdStr].dias_lista.push(diaFormateado);
 
-                        // Si es descarga, creamos una entrada visual extra para el receptor en la tabla Activas
-                        if(a.tipo_asignacion === 'DESCARGA' && a.codigo_profesor_cubre) {
-                             let cobKey = aCrnStr + "_COB";
+                        if(a.tipo_asig === 'DESCARGA' && a.id_prof_cubre) {
+                             let cobKey = aIdStr + "_COB";
                              if (!agrupados[cobKey]) {
-                                let infoBase = $scope.catalogoGruposOriginal.find(g => (g.crn || "").toString() === aCrnStr);
-                                let hInicio = infoBase ? infoBase.hora_inicio : a.hora_inicio;
-                                let hFin = infoBase ? infoBase.hora_fin : a.hora_fin;
+                                let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
                                 agrupados[cobKey] = {
-                                    crn: a.crn, clave_materia: a.clave_materia, 
-                                    materia: a.materia || (infoBase ? infoBase.materia : "Materia Desconocida"), 
-                                    programa_educativo: infoBase ? infoBase.programa_educativo : "-", // <-- DATO NUEVO
+                                    crn: a.crn, clave_materia: a.clave, materia: a.materia, 
+                                    programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                     dias_lista: [],
-                                    horario: $scope.formatHoraLimpia(hInicio) + " - " + $scope.formatHoraLimpia(hFin),
-                                    codigo_profesor: a.codigo_profesor_cubre, nombre_profesor: a.nombre_profesor_cubre, 
+                                    horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
+                                    codigo_profesor: a.id_prof_cubre, nombre_profesor: a.nom_cubre, 
                                     tipo_asignacion: "CUBRE DESCARGA", carga_total: 0, 
                                     departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
                                     departamento_profesor: "-",
-                                    id_registro_json: infoBase ? infoBase.id : (a.id_registro_json || null)
+                                    id_registro_json: a.id_materia
                                 };
                              }
-                             agrupados[cobKey].carga_total += parseFloat(a.carga_horaria_fila) || 0;
-                             let diaFormateadoCob = a.dias_imparticion;
+                             agrupados[cobKey].carga_total += parseFloat(a.carga) || 0;
+                             let diaFormateadoCob = a.dias;
                              if(!agrupados[cobKey].dias_lista.includes(diaFormateadoCob) && diaFormateadoCob) agrupados[cobKey].dias_lista.push(diaFormateadoCob);
                         }
                     });
                     
-                    // Transformar dias_lista en string L - M - J
                     $scope.misAsignaciones = Object.values(agrupados).map(obj => {
                         obj.dias = obj.dias_lista.join(" - ");
                         return obj;
@@ -1701,21 +1706,25 @@
                     let gIdStr = (g.id || "").toString();
                     let diasMateria = $scope.formatearDiasStr(g).trim(); // Limpiamos espacios
 
-                    let asigDoc = $scope.asignacionesGlobales.find(ad => (ad.id_registro_json || "").toString() === gIdStr);
+                    let asigDoc = $scope.asignacionesGlobales.find(ad => (ad.id_materia || "").toString() === gIdStr);
                     
-                    // CRUCE DE AULAS ESTRICTO Y A PRUEBA DE FALLOS:
                     let asigAula = $scope.aulasAsignadasServer.find(aa => 
-                        (aa.crn || "").toString() === (g.crn || "").toString() && 
+                        (aa.id_materia || "").toString() === gIdStr && 
                         (aa.dias || "").trim() === diasMateria
                     );
 
-                    let c_hIni = asigDoc ? asigDoc.hora_inicio : g.hora_inicio;
-                    let c_hFin = asigDoc ? asigDoc.hora_fin : g.hora_fin;
+                    let c_hIni = asigDoc ? asigDoc.ini : g.hora_inicio;
+                    let c_hFin = asigDoc ? asigDoc.fin : g.hora_fin;
 
-                    let cod_prof_final = asigDoc ? (asigDoc.tipo_asignacion === 'DESCARGA' ? asigDoc.codigo_profesor_cubre : asigDoc.codigo_profesor) : null;
-                    let nom_prof_final = asigDoc ? (asigDoc.tipo_asignacion === 'DESCARGA' ? asigDoc.nombre_profesor_cubre : asigDoc.nombre_profesor) : null;
-                    let tipo_final = asigDoc ? (asigDoc.tipo_asignacion === 'DESCARGA' ? "CUBRE DESCARGA" : asigDoc.tipo_asignacion) : null;
-
+                    let cod_prof_final = null;
+                    if (asigDoc) {
+                        let profId = asigDoc.tipo_asig === 'DESCARGA' ? asigDoc.id_prof_cubre : asigDoc.id_profesor;
+                        let pData = $scope.profesoresBD.find(p => p.id_profesor == profId);
+                        cod_prof_final = pData ? pData.codigo : profId; // Muestra el visual
+                    }
+                    let nom_prof_final = asigDoc ? (asigDoc.tipo_asig === 'DESCARGA' ? asigDoc.nom_cubre : asigDoc.nom_prof) : null;
+                    let tipo_final = asigDoc ? (asigDoc.tipo_asig === 'DESCARGA' ? "CUBRE DESCARGA" : asigDoc.tipo_asig) : null;
+                    
                     return {
                         id_registro_json: g.id, 
                         crn: g.crn, 
@@ -1729,11 +1738,12 @@
                         codigo_profesor: cod_prof_final, 
                         nombre_profesor: nom_prof_final, 
                         tipo_asignacion: tipo_final,
-                        nomenclatura_aula: asigAula ? asigAula.nomenclatura_aula : null, 
+                        nomenclatura_aula: asigAula ? asigAula.aula : null, // <-- AQUÍ ESTÁ LA CORRECCIÓN
                         espacio_aula: asigAula ? asigAula.espacio : null,
                         es_presencial: $scope.esPresencialStr(g),
-                        tipo_aula: (g.tipo_aula || g.TIPO_AULA || "NO ESPECIFICADO").toString().toUpperCase() // <-- DATO NUEVO
+                        tipo_aula: (g.tipo_aula || g.TIPO_AULA || "NO ESPECIFICADO").toString().toUpperCase()
                     };
+
                 });
                 $scope.totalPresenciales = $scope.tablaCruceAulas.filter(x => x.es_presencial).length;
                 $scope.materiasConAula = $scope.tablaCruceAulas.filter(x => x.nomenclatura_aula).length;
@@ -1800,12 +1810,21 @@
                 // Si está ocupada (true), retornamos false para ocultarla de la lista
                 return !estaOcupada; 
             };
+            
             $scope.guardarAsignacionAula = function() {
                 if(!$scope.inputAulaAsignar) return;
                 let aulaInfo = $scope.listaAulas.find(a => a.nomenclatura === $scope.inputAulaAsignar);
                 let payload = {
                     accion: 'ASIGNAR_AULA', usuario: $scope.correoUsuario,
-                    registro: { id_registro_json: $scope.selectedMateriaAula.id_registro_json, crn: $scope.selectedMateriaAula.crn, materia: $scope.selectedMateriaAula.materia, nomenclatura_aula: $scope.inputAulaAsignar, espacio: aulaInfo.espacio, dias: $scope.selectedMateriaAula.dias, horario: $scope.selectedMateriaAula.horario }
+                    registro: { 
+                        id_materia: $scope.selectedMateriaAula.id_registro_json, // <-- CAMBIO CLAVE AQUÍ
+                        crn: $scope.selectedMateriaAula.crn, 
+                        materia: $scope.selectedMateriaAula.materia, 
+                        nomenclatura_aula: $scope.inputAulaAsignar, 
+                        espacio: aulaInfo.espacio, 
+                        dias: $scope.selectedMateriaAula.dias, 
+                        horario: $scope.selectedMateriaAula.horario 
+                    }
                 };
 
                 $scope.guardandoAula = true;
@@ -1825,6 +1844,7 @@
                 $http.post($scope.config.API_URL, JSON.stringify({ 
                     accion: 'BAJA_AULA', 
                     usuario: $scope.correoUsuario, 
+                    id_materia: item.id_registro_json,
                     crn: item.crn,
                     dias: item.dias 
                 }), { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })
@@ -1850,6 +1870,7 @@
                         if (!firmasEnviadas.has(firmaUnica)) {
                             firmasEnviadas.add(firmaUnica);
                             gruposAEnviar.push({ 
+                                id_materia: r.id || r.crn,
                                 id_registro_json: r.id || r.crn, 
                                 crn: r.crn, 
                                 materia: r.materia, 
@@ -1867,10 +1888,25 @@
                 $scope.resultadosBusqueda.forEach(recolectarFila);
                 $scope.registrosBD.forEach(recolectarFila);
                 
-                let payload = { accion: 'ASIGNAR_GRUPOS', ciclo_escolar: '2026B', usuario: $scope.perfil.correo, profesor: { codigo: $scope.asignacion.codigo_profesor, nombre: $scope.asignacion.nombre_profesor, tipo_asignacion: $scope.asignacion.tipo_asignacion }, grupos: gruposAEnviar };
+                let payload = { 
+                    accion: 'ASIGNAR_GRUPOS', 
+                    ciclo_escolar: '2027A', 
+                    usuario: $scope.perfil.correo, 
+                    profesor: { 
+                        id_profesor: $scope.asignacion.id_profesor, // Oculto: Llave primaria de BD
+                        codigo: $scope.asignacion.codigo_profesor,  // Visible: Código oficial UDG
+                        nombre: $scope.asignacion.nombre_profesor, 
+                        tipo_asignacion: $scope.asignacion.tipo_asignacion 
+                    }, 
+                    grupos: gruposAEnviar 
+                };
                 
                 if ($scope.asignacion.tipo_asignacion === 'DESCARGA') {
-                    payload.profesor_receptor = { codigo: $scope.asignacion.receptor_codigo, nombre: $scope.asignacion.receptor_nombre };
+                    payload.profesor_receptor = { 
+                        id_profesor: $scope.asignacion.receptor_id_profesor,
+                        codigo: $scope.asignacion.receptor_codigo, 
+                        nombre: $scope.asignacion.receptor_nombre 
+                    };
                 }
 
                 $scope.guardandoAsignacion = true; 
@@ -1900,7 +1936,7 @@
 
                 if(!confirm(`¿Estás seguro de cancelar la asignación del CRN ${asig.crn}? (No se borrará el aula si existe).`)) return;
                 $scope.cargandoDatos = true; 
-                let payloadDocente = { accion: 'BAJA_ASIGNACION', ciclo_escolar: '2026B', usuario: $scope.perfil.correo, crn: asig.crn, codigo_profesor: originalCod };
+                let payloadDocente = { accion: 'BAJA_ASIGNACION', ciclo_escolar: '2027A', usuario: $scope.perfil.correo, id_materia: asig.id_registro_json, id_profesor: originalCod };
                 $http.post($scope.config.API_URL, JSON.stringify(payloadDocente), { headers: { 'Content-Type': 'text/plain;charset=utf-8' } }).then(function(response) {
                     if (response.data.status === 'success') { alert("✅ " + response.data.message); $scope.sincronizarSistema(); } 
                     else { alert("❌ Error: " + response.data.message); $scope.cargandoDatos = false; }
@@ -2034,29 +2070,54 @@
                 return crnsUnicos.size; 
             };
 
-            $scope.seleccionarProfesorDesdeLista = function() {
+$scope.seleccionarProfesorDesdeLista = function() {
                 if (!$scope.busquedaDocenteAsignacion) return;
                 let val = $scope.busquedaDocenteAsignacion.toUpperCase().trim(); let posibleCodigo = val.split(" - ")[0].trim();
-                let prof = $scope.profesoresBD.find(p => { let pCodStr = (p.codigo || "").toString().toUpperCase(); let pNomStr = (p.profesor || "").toUpperCase(); return pCodStr === posibleCodigo || pCodStr === val || pNomStr === val; });
-                if (prof) { $scope.asignacion.codigo_profesor = prof.codigo; $scope.asignacion.nombre_profesor = prof.profesor; $scope.asignacion.categoria = prof.categoria || "-"; $scope.asignacion.departamento_adscripcion = prof.departamento_adscripcion || "-"; $scope.asignacion.carga_obligada = $scope.calcularCargaObligada(prof); $scope.asignacion.carga_asignada_previa = prof.carga_efectiva || 0; }
+                let prof = $scope.profesoresBD.find(p => { 
+                    let pCodStr = (p.codigo || "").toString().toUpperCase(); 
+                    let pIdStr = (p.id_profesor || "").toString().toUpperCase(); 
+                    let pNomStr = (p.profesor || "").toUpperCase(); 
+                    return pCodStr === posibleCodigo || pIdStr === posibleCodigo || pCodStr === val || pNomStr === val; 
+                });
+                if (prof) { 
+                    $scope.asignacion.id_profesor = prof.id_profesor; // Oculto para la lógica
+                    $scope.asignacion.codigo_profesor = prof.codigo;  // Visible en UI (Reportes, PDF, Desglose)
+                    $scope.asignacion.nombre_profesor = prof.profesor; 
+                    $scope.asignacion.categoria = prof.categoria || "-"; 
+                    $scope.asignacion.departamento_adscripcion = prof.departamento_adscripcion || "-"; 
+                    $scope.asignacion.carga_obligada = $scope.calcularCargaObligada(prof); 
+                    $scope.asignacion.carga_asignada_previa = prof.carga_efectiva || 0; 
+                }
             };
 
             $scope.seleccionarReceptorDesdeLista = function() {
                 if (!$scope.busquedaReceptorAsignacion) return;
                 let val = $scope.busquedaReceptorAsignacion.toUpperCase().trim(); let posibleCodigo = val.split(" - ")[0].trim();
-                let prof = $scope.profesoresBD.find(p => { let pCodStr = (p.codigo || "").toString().toUpperCase(); let pNomStr = (p.profesor || "").toUpperCase(); return pCodStr === posibleCodigo || pCodStr === val || pNomStr === val; });
-                if (prof) { $scope.asignacion.receptor_codigo = prof.codigo; $scope.asignacion.receptor_nombre = prof.profesor; $scope.asignacion.receptor_categoria = prof.categoria || "-"; $scope.asignacion.receptor_depto = prof.departamento_adscripcion || "-"; $scope.asignacion.receptor_carga_previa = prof.carga_efectiva || 0; }
+                let prof = $scope.profesoresBD.find(p => { 
+                    let pCodStr = (p.codigo || "").toString().toUpperCase(); 
+                    let pIdStr = (p.id_profesor || "").toString().toUpperCase(); 
+                    let pNomStr = (p.profesor || "").toUpperCase(); 
+                    return pCodStr === posibleCodigo || pIdStr === posibleCodigo || pCodStr === val || pNomStr === val; 
+                });
+                if (prof) { 
+                    $scope.asignacion.receptor_id_profesor = prof.id_profesor;
+                    $scope.asignacion.receptor_codigo = prof.codigo;
+                    $scope.asignacion.receptor_nombre = prof.profesor; 
+                    $scope.asignacion.receptor_categoria = prof.categoria || "-"; 
+                    $scope.asignacion.receptor_depto = prof.departamento_adscripcion || "-"; 
+                    $scope.asignacion.receptor_carga_previa = prof.carga_efectiva || 0; 
+                }
             };
 
             $scope.limpiarBusquedaProfesor = function() { 
                 $scope.busquedaDocenteAsignacion = ""; 
-                $scope.asignacion.codigo_profesor = ""; $scope.asignacion.nombre_profesor = ""; $scope.asignacion.categoria = ""; $scope.asignacion.departamento_adscripcion = ""; $scope.asignacion.carga_obligada = ""; $scope.asignacion.carga_asignada_previa = 0; $scope.asignacion.tipo_asignacion = ""; 
+                $scope.asignacion.id_profesor = ""; $scope.asignacion.codigo_profesor = ""; $scope.asignacion.nombre_profesor = ""; $scope.asignacion.categoria = ""; $scope.asignacion.departamento_adscripcion = ""; $scope.asignacion.carga_obligada = ""; $scope.asignacion.carga_asignada_previa = 0; $scope.asignacion.tipo_asignacion = ""; 
                 $scope.limpiarReceptor();
             };
 
             $scope.limpiarReceptor = function() {
                 $scope.busquedaReceptorAsignacion = "";
-                $scope.asignacion.receptor_codigo = ""; $scope.asignacion.receptor_nombre = ""; $scope.asignacion.receptor_categoria = ""; $scope.asignacion.receptor_depto = ""; $scope.asignacion.receptor_carga_previa = 0;
+                $scope.asignacion.receptor_id_profesor = ""; $scope.asignacion.receptor_codigo = ""; $scope.asignacion.receptor_nombre = ""; $scope.asignacion.receptor_categoria = ""; $scope.asignacion.receptor_depto = ""; $scope.asignacion.receptor_carga_previa = 0;
             };
 
             $scope.calcularCargaObligada = function(p) { if (!p || !p.tipo_categoria) return "-"; let tipo = p.tipo_categoria.toString().trim().toUpperCase(); if (tipo === "ASIGNATURA") return p.horas_asignaturas_definitivas || "-"; else if (tipo === "PTC") return p["carga_mínima_obligatoria_(ptc)"] || p["carga_minima_obligatoria_(ptc)"] || "-"; else if (tipo === "CIVIL") return "-"; return "-"; };
@@ -2091,11 +2152,11 @@
                 $scope.materiasDesglose = [];$scope.resumenDesglose = { totalMaterias: 0, totalCarga: 0, porDepartamento: {} };
                 
                 let crnsProcesados = new Set();
-                let profCod = (profesor.codigo || "").toString();
+                let profCod = (profesor.id_profesor || "").toString(); // Corregido
                 
                 $scope.asignacionesGlobales.forEach(a => {
-                    let esPropia = ((a.codigo_profesor || "").toString() === profCod && a.tipo_asignacion !== 'DESCARGA');
-                    let esCobertura = ((a.codigo_profesor_cubre || "").toString() === profCod && a.tipo_asignacion === 'DESCARGA');
+                    let esPropia = ((a.id_profesor || "").toString() === profCod && a.tipo_asig !== 'DESCARGA');
+                    let esCobertura = ((a.id_prof_cubre || "").toString() === profCod && a.tipo_asig === 'DESCARGA');
                     
                     if (esPropia || esCobertura) {
                         let crn = (a.crn || "").toString();
@@ -2103,18 +2164,16 @@
                         if (!crnsProcesados.has(crn)) {
                             crnsProcesados.add(crn);
                             
-                            // Extraer departamento e info de materia original
-                            let infoBase = $scope.catalogoGruposOriginal.find(g => (g.crn || "").toString() === crn);
+                            let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === (a.id_materia||"").toString());
                             let deptoMateria = infoBase ? (infoBase.departamento || "Sin Departamento") : "Desconocido";
                             
-                            // Sumar carga de este CRN específico para este profesor
                             let cargaCRN = 0;
                             $scope.asignacionesGlobales.forEach(asigSub => {
                                 if ((asigSub.crn || "").toString() === crn) {
-                                    let subPropia = ((asigSub.codigo_profesor || "").toString() === profCod && asigSub.tipo_asignacion !== 'DESCARGA');
-                                    let subCobertura = ((asigSub.codigo_profesor_cubre || "").toString() === profCod && asigSub.tipo_asignacion === 'DESCARGA');
+                                    let subPropia = ((asigSub.id_profesor || "").toString() === profCod && asigSub.tipo_asig !== 'DESCARGA');
+                                    let subCobertura = ((asigSub.id_prof_cubre || "").toString() === profCod && asigSub.tipo_asig === 'DESCARGA');
                                     if (subPropia || subCobertura) {
-                                        cargaCRN += parseFloat(asigSub.carga_horaria_fila) || 0;
+                                        cargaCRN += parseFloat(asigSub.carga) || 0; // a.carga_horaria_fila a a.carga
                                     }
                                 }
                             });
@@ -2347,24 +2406,23 @@
                 // Recorremos TODA la hoja de asignaciones fila por fila sin agrupar por CRN
                 // para que aparezca una línea por cada día de la semana.
                 $scope.asignacionesGlobales.forEach(a => {
-                    let esPropia = ((a.codigo_profesor || "").toString() === (profesor.codigo || "").toString() && a.tipo_asignacion !== 'DESCARGA');
-                    let esCobertura = ((a.codigo_profesor_cubre || "").toString() === (profesor.codigo || "").toString() && a.tipo_asignacion === 'DESCARGA');
+                    let esPropia = ((a.id_profesor || "").toString() === (profesor.id_profesor || "").toString() && a.tipo_asig !== 'DESCARGA');
+                    let esCobertura = ((a.id_prof_cubre || "").toString() === (profesor.id_profesor || "").toString() && a.tipo_asig === 'DESCARGA');
 
                     if (esPropia || esCobertura) {
-                        let aIdStr = (a.id_registro_json || "").toString();
+                        let aIdStr = (a.id_materia || "").toString(); // Cambiado a id_materia
                         let gInfo = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
                         
                         let nombreMateria = gInfo ? gInfo.materia : (a.materia || "Materia Desconocida");
                         if(esCobertura) nombreMateria += " (CUBRE DESCARGA)";
                         
-                        // Utilizamos estrictamente el dia de la fila que nos da el backend
-                        let dias = a.dias_imparticion || (gInfo ? $scope.formatearDiasStr(gInfo) : "-");
-                        let hInicio = a.hora_inicio || (gInfo ? gInfo.hora_inicio : "");
-                        let hFin = a.hora_fin || (gInfo ? gInfo.hora_fin : "");
+                        let dias = a.dias || (gInfo ? $scope.formatearDiasStr(gInfo) : "-");
+                        let hInicio = a.ini || (gInfo ? gInfo.hora_inicio : "");
+                        let hFin = a.fin || (gInfo ? gInfo.hora_fin : "");
                         let horarioFormateado = $scope.formatHoraLimpia(hInicio) + " - " + $scope.formatHoraLimpia(hFin);
-                        let hr = a.carga_horaria_fila;
+                        let hr = a.carga; // Cambiado a a.carga
 
-                        bodyData.push([ a.crn, a.clave_materia || a.clave, nombreMateria, dias, horarioFormateado, hr ]);
+                        bodyData.push([ a.crn, a.clave || (gInfo ? gInfo.clave : ""), nombreMateria, dias, horarioFormateado, hr ]);
                     }
                 });
 
