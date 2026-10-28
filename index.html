@@ -1164,60 +1164,136 @@
             </div>
         </div>
 
-        <!-- NUEVA VISTA: GESTIÓN DE CRNS (PROTOTIPO) -->
+        <!-- VISTA: GESTIÓN DE CRNS (OPERATIVA) -->
         <div ng-show="vistaPrincipal == 'gestion_crns'" class="space-y-6">
+            
+            <!-- SECCIÓN 1: SOLICITUD DE NUEVOS CRNS (Para Jefes y Admin) -->
             <section class="bg-white p-6 rounded-lg shadow border-t-4 border-cyan-500">
-                <div class="border-b border-gray-100 pb-4 mb-6">
-                    <h2 class="text-xl font-black text-gray-800 tracking-tight">GESTIÓN DE NUEVOS CRNS</h2>
-                    <p class="text-xs font-bold text-cyan-600 uppercase tracking-widest mt-1">Status: En Desarrollo</p>
+                <div class="border-b border-gray-100 pb-4 mb-4">
+                    <h2 class="text-xl font-black text-gray-800 tracking-tight">SOLICITUD DE NUEVOS CRNS</h2>
+                    <p class="text-sm text-gray-500 mt-1">Busca la materia en el catálogo oficial para generar CRNs temporales.</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-lg border border-gray-200">
-                    <!-- CRN -->
-                    <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-2">ID Institucional (CRN):</label>
-                        <input type="text" inputmode="numeric" placeholder="Ej. 2963727"
-                                class="w-full border border-gray-300 rounded p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none font-mono font-bold text-gray-700 shadow-sm">
+                <div class="bg-cyan-50 p-4 rounded-lg border border-cyan-100 mb-6">
+                    <label class="block text-sm font-bold text-cyan-900 mb-2">Buscador Oficial de Materias (Clave o Nombre):</label>
+                    <div class="flex gap-4">
+                        <input type="text" ng-model="formCrn.busqueda" list="listaCatalogoMaterias" ng-change="seleccionarMateriaCatalogo()" class="w-full border border-cyan-300 rounded p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none uppercase font-semibold text-gray-700 shadow-sm" placeholder="Ej. I7042 o PROGRAMACION...">
+                        <datalist id="listaCatalogoMaterias">
+                            <option ng-repeat="m in catalogoMateriasGeneral" value="{{m.clave}} - {{m.materia}}"></option>
+                        </datalist>
+                        <button ng-click="limpiarFormularioCrn()" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded shadow transition-colors">Limpiar</button>
                     </div>
+                </div>
 
-                    <!-- Tipo de CRN -->
-                    <div class="flex flex-col justify-center">
-                        <label class="block text-sm font-bold text-gray-700 mb-2">Clasificación del CRN:</label>
-                        <div class="flex items-center gap-4 bg-white p-3 rounded border shadow-sm">
-                            <label class="inline-flex items-center cursor-pointer">
-                                <input type="radio" name="tipoCrn" value="definitivo" class="form-radio h-5 w-5 text-cyan-600" checked>
-                                <span class="ml-2 font-semibold text-sm text-gray-700">Definitivo (Real)</span>
-                            </label>
-                            <label class="inline-flex items-center cursor-pointer">
-                                <input type="radio" name="tipoCrn" value="temporal" class="form-radio h-5 w-5 text-orange-500">
-                                <span class="ml-2 font-semibold text-sm text-gray-700">Temporal / Mantenimiento</span>
-                            </label>
-                        </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-6 rounded-lg border border-gray-200" ng-show="formCrn.materiaSeleccionada">
+                    <div class="md:col-span-1">
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Clave</label>
+                        <input type="text" ng-model="formCrn.materiaSeleccionada.clave" readonly class="w-full border rounded p-2 bg-gray-200 font-mono font-bold text-gray-700">
                     </div>
-
-                    <!-- Materia Vinculada -->
+                    <div class="md:col-span-3">
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Materia</label>
+                        <input type="text" ng-model="formCrn.materiaSeleccionada.materia" readonly class="w-full border rounded p-2 bg-gray-200 font-bold text-gray-700">
+                    </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-bold text-gray-700 mb-2">Materia Vinculada:</label>
-                        <select class="w-full border border-gray-300 rounded p-3 focus:ring-2 focus:ring-cyan-500 bg-white font-semibold text-gray-700 shadow-sm uppercase">
-                            <option value="">-- Seleccione la materia del catálogo --</option>
-                            <option ng-repeat="materia in obtenerMateriasUnicas()" value="{{materia}}">{{materia}}</option>
-                        </select>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Departamento</label>
+                        <input type="text" ng-model="formCrn.materiaSeleccionada.departamento" readonly class="w-full border rounded p-2 bg-gray-200 font-semibold text-gray-700 text-xs">
                     </div>
-
-                    <!-- Departamento de Adscripción -->
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-bold text-gray-700 mb-2">Departamento Solicitante / Adscripción:</label>
-                        <select class="w-full border border-gray-300 rounded p-3 focus:ring-2 focus:ring-cyan-500 bg-white font-semibold text-gray-700 shadow-sm uppercase">
-                            <option value="">-- Seleccione el departamento --</option>
-                            <option ng-repeat="dep in obtenerDepartamentosUnicos()" value="{{dep}}">{{dep}}</option>
+                    <div class="md:col-span-1">
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Horas Semanales</label>
+                        <input type="text" ng-model="formCrn.materiaSeleccionada.horas_semanal" readonly class="w-full border rounded p-2 bg-gray-200 font-bold text-indigo-700 text-center">
+                    </div>
+                    <div class="md:col-span-1 bg-yellow-50 p-2 rounded border border-yellow-200 shadow-sm">
+                        <label class="block text-xs font-bold text-yellow-800 mb-1 uppercase">¿Cuántos CRNS necesitas?</label>
+                        <select ng-model="formCrn.cantidad" class="w-full border border-yellow-400 rounded p-2 focus:ring-2 focus:ring-yellow-600 bg-white font-bold text-center">
+                            <option ng-repeat="n in [1,2,3,4,5,6,7,8,9,10]" value="{{n}}">{{n}} Sección(es)</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="mt-6 flex justify-end">
-                    <button class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-8 rounded shadow-md transition-colors opacity-60 cursor-not-allowed" disabled>
-                        Crear y Notificar (Próximamente)
+                <div class="mt-6 flex justify-end" ng-show="formCrn.materiaSeleccionada">
+                    <button ng-click="solicitarNuevosCRNs()" ng-disabled="procesandoSolicitud" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-8 rounded shadow-md transition-colors flex items-center gap-2">
+                        <div ng-show="procesandoSolicitud" class="loader" style="width: 15px; height: 15px; border-width: 2px;"></div>
+                        <span>Formalizar Solicitud de CRN(s)</span>
                     </button>
+                </div>
+            </section>
+
+            <!-- SECCIÓN 2: MANTENIMIENTO (SÓLO PARA COORDINACIÓN DE PERSONAL) -->
+            <section class="bg-white p-6 rounded-lg shadow border-t-4 border-indigo-500" ng-if="esPersonalRH()">
+                <div class="border-b border-gray-100 pb-2 mb-4 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-black text-indigo-900 tracking-tight">MANTENIMIENTO DE CRNs (USO EXCLUSIVO RH)</h2>
+                        <p class="text-sm text-gray-500 mt-1">Asignación de CRNs definitivos desde SIIAU.</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-4 bg-indigo-50 p-4 rounded-lg border border-indigo-100 items-end">
+                    <div class="flex-1">
+                        <label class="block text-sm font-bold text-indigo-900 mb-2">Selecciona un CRN Temporal pendiente:</label>
+                        <select ng-model="formMantenimiento.id_seleccionado" class="w-full border border-indigo-300 rounded p-3 focus:ring-2 focus:ring-indigo-500 bg-white font-semibold text-gray-700 shadow-sm uppercase">
+                            <option value="">-- Elige una solicitud pendiente --</option>
+                            <option ng-repeat="req in gestionCrnsGlobales | filter:{estatus: 'CRN TEMPORAL'}" value="{{req.id}}">
+                                Temp: {{req.crn_temporal}} | {{req.clave}} - {{req.materia}} (Depto: {{req.departamento}})
+                            </option>
+                        </select>
+                    </div>
+                    <div class="w-full md:w-64">
+                        <label class="block text-sm font-bold text-indigo-900 mb-2">CRN Definitivo (Oficial):</label>
+                        <input type="text" inputmode="numeric" ng-model="formMantenimiento.crn_definitivo" class="w-full border border-indigo-300 rounded p-3 focus:ring-2 focus:ring-indigo-500 font-mono font-bold text-gray-700 shadow-sm text-center" placeholder="Ej. 2963727">
+                    </div>
+                    <button ng-click="guardarMantenimientoCRN()" ng-disabled="!formMantenimiento.id_seleccionado || !formMantenimiento.crn_definitivo || procesandoSolicitud" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded shadow-md transition-colors disabled:bg-gray-400">
+                        Guardar CRN
+                    </button>
+                </div>
+            </section>
+
+            <!-- SECCIÓN 3: TABLA DE SEGUIMIENTO Y EXPORTACIÓN -->
+            <section class="bg-white p-6 rounded-lg shadow border-t-4 border-gray-400">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-700">Tablero General de Solicitudes</h2>
+                    <button ng-click="exportarExcelGestionCRNs()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-sm shadow flex items-center gap-2">
+                        <span>📥 Exportar a Excel</span>
+                    </button>
+                </div>
+
+                <div class="mb-4">
+                    <input type="text" ng-model="busquedaCrns" class="w-full border rounded p-2 focus:ring-2 focus:ring-gray-400 uppercase text-sm" placeholder="Buscar por Clave, Materia, CRN o Estatus...">
+                </div>
+
+                <div class="overflow-x-auto border rounded-lg">
+                    <table class="w-full table-auto text-sm text-left whitespace-nowrap">
+                        <thead class="bg-gray-100 text-gray-700 border-b">
+                            <tr>
+                                <th class="px-3 py-2 font-semibold">Estatus</th>
+                                <th class="px-3 py-2 font-semibold">CRN Temporal</th>
+                                <th class="px-3 py-2 font-semibold text-indigo-700">CRN Definitivo</th>
+                                <th class="px-3 py-2 font-semibold">Clave</th>
+                                <th class="px-3 py-2 font-semibold w-48">Materia</th>
+                                <th class="px-3 py-2 font-semibold">Departamento</th>
+                                <th class="px-3 py-2 font-semibold text-center">Hrs Sem.</th>
+                                <th class="px-3 py-2 font-semibold text-xs">Solicitante</th>
+                                <th class="px-3 py-2 font-semibold text-xs">Fecha Solicitud</th>
+                                <th class="px-3 py-2 font-semibold text-xs">Atendió RH</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="r in gestionCrnsGlobales | filter:busquedaCrns | orderBy:'-fecha_solicitud'" class="border-t odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                                <td class="px-3 py-2">
+                                    <span class="px-2 py-1 rounded text-[10px] font-bold border" ng-class="r.estatus === 'CRN TEMPORAL' ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-green-100 text-green-800 border-green-300'">{{r.estatus}}</span>
+                                </td>
+                                <td class="px-3 py-2 font-mono font-bold text-orange-600">{{r.crn_temporal}}</td>
+                                <td class="px-3 py-2 font-mono font-black text-indigo-700">{{r.crn_definitivo || 'PENDIENTE'}}</td>
+                                <td class="px-3 py-2 font-bold">{{r.clave}}</td>
+                                <td class="px-3 py-2 truncate max-w-xs" title="{{r.materia}}">{{r.materia}}</td>
+                                <td class="px-3 py-2 text-xs text-gray-600">{{r.departamento}}</td>
+                                <td class="px-3 py-2 text-center font-bold">{{r.horas_semanal}}</td>
+                                <td class="px-3 py-2 text-xs italic">{{r.solicita}}</td>
+                                <td class="px-3 py-2 text-xs text-gray-500">{{r.fecha_solicitud | date:'dd/MM/yyyy'}}</td>
+                                <td class="px-3 py-2 text-xs italic text-indigo-600">{{r.atendido_rh || '-'}}</td>
+                            </tr>
+                            <tr ng-if="(gestionCrnsGlobales | filter:busquedaCrns).length === 0"><td colspan="10" class="px-3 py-6 text-center text-gray-500 italic">No hay registros de gestión de CRNs.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
         </div>
@@ -1247,7 +1323,12 @@
             $scope.vistaPrincipal = 'grupos'; 
             $scope.mostrarNotificaciones = false;
             $scope.cargandoDatos = false;
-            $scope.guardandoAsignacion = false; 
+            $scope.guardandoAsignacion = false;
+            
+            // --- GESTIÓN DE CRNS ---
+            $scope.formCrn = { busqueda: "", materiaSeleccionada: null, cantidad: "1" };
+            $scope.formMantenimiento = { id_seleccionado: "", crn_definitivo: "" };
+            $scope.procesandoSolicitud = false;
             
             // --- TABS, AULAS Y FORMULARIOS ---
             $scope.tabAsignacionDocente = 'activos'; 
@@ -1323,7 +1404,7 @@
             // ======================================================================
             // 1. INICIALIZACIÓN Y CONFIGURACIÓN DESDE BÓVEDA 2027A
             // ======================================================================
-            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbwXvsVNBk0_9Eap-FKmbyKXs3ffQmKrZy0_bnqGnB6jJtYQGEyZskBlRrQe1tvCH450rQ/exec";
+            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbw3XAQcnlmYpHEyFuRmXL2jPMHYcTJz9zvMM0ycgsm1jHTy34O2egYY8wdUCg5o7o1y9Q/exec";
 
             window.onload = function () {
                 let cacheBuster = "&t=" + new Date().getTime();
@@ -1549,6 +1630,10 @@
                     $scope.asignacionesGlobales = resBackend.asignaciones || []; 
                     $scope.descargasGlobales = resBackend.descargas || []; 
                     $scope.aulasAsignadasServer = resBackend.aulas_asignadas || [];
+                    
+                    // NUEVOS ARREGLOS PARA GESTIÓN CRNS
+                    $scope.catalogoMateriasGeneral = resBackend.catalogo_materias_general || [];
+                    $scope.gestionCrnsGlobales = resBackend.gestion_crns || [];
                     
                     // 2. Mapeo estructural: Convertimos la tabla "Materias" al formato frontend
                     $scope.catalogoGruposOriginal = resBackend.materias.map(m => ({
@@ -2070,7 +2155,7 @@
                 return crnsUnicos.size; 
             };
 
-$scope.seleccionarProfesorDesdeLista = function() {
+            $scope.seleccionarProfesorDesdeLista = function() {
                 if (!$scope.busquedaDocenteAsignacion) return;
                 let val = $scope.busquedaDocenteAsignacion.toUpperCase().trim(); let posibleCodigo = val.split(" - ")[0].trim();
                 let prof = $scope.profesoresBD.find(p => { 
@@ -2476,6 +2561,113 @@ $scope.seleccionarProfesorDesdeLista = function() {
 
                 let labelsDepartamentos = Object.keys(statsDepartamentos).sort(); let dataAsignadosDept = labelsDepartamentos.map(p => statsDepartamentos[p].asignados); let dataPendientesDept = labelsDepartamentos.map(p => statsDepartamentos[p].pendientes);
                 chartDepartamentos = new Chart(document.getElementById('chartDepartamentos').getContext('2d'), { type: 'bar', data: { labels: labelsDepartamentos, datasets: [{ label: 'Grupos Asignados', data: dataAsignadosDept, backgroundColor: colBase[1], borderRadius: 4 }, { label: 'Grupos Pendientes', data: dataPendientesDept, backgroundColor: colBase[4], borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }, plugins: { tooltip: { mode: 'index', intersect: false }, legend: { position: 'top' } } } });
+            };
+
+            // ======================================================================
+            // GESTIÓN DE CRNS (SOLICITUD Y MANTENIMIENTO)
+            // ======================================================================
+            
+            // Seguridad: Solo permite ver Mantenimiento a RH
+            $scope.esPersonalRH = function() {
+                const correosAutorizados = ['margarita.flores@cugdl.udg.mx', 'luis.saldana@cugdl.udg.mx', 'jonathan.lopez@cugdl.udg.mx'];
+                return correosAutorizados.includes($scope.correoUsuario);
+            };
+
+            $scope.seleccionarMateriaCatalogo = function() {
+                if (!$scope.formCrn.busqueda) return;
+                let val = $scope.formCrn.busqueda.toUpperCase().trim(); 
+                let claveBusqueda = val.split(" - ")[0].trim();
+                
+                let mat = $scope.catalogoMateriasGeneral.find(m => { 
+                    let cStr = (m.clave || "").toString().toUpperCase(); 
+                    let nStr = (m.materia || "").toUpperCase(); 
+                    return cStr === claveBusqueda || cStr === val || nStr === val; 
+                });
+                
+                if (mat) { $scope.formCrn.materiaSeleccionada = mat; }
+            };
+
+            $scope.limpiarFormularioCrn = function() {
+                $scope.formCrn = { busqueda: "", materiaSeleccionada: null, cantidad: "1" };
+            };
+
+            $scope.solicitarNuevosCRNs = function() {
+                if (!$scope.formCrn.materiaSeleccionada) return;
+                if (!confirm(`¿Estás seguro de solicitar ${$scope.formCrn.cantidad} nuevo(s) CRN(s) para la materia ${$scope.formCrn.materiaSeleccionada.materia}?`)) return;
+                
+                $scope.procesandoSolicitud = true;
+                let payload = {
+                    accion: 'SOLICITAR_NUEVOS_CRNS',
+                    usuario: $scope.correoUsuario,
+                    materia: $scope.formCrn.materiaSeleccionada,
+                    cantidad: parseInt($scope.formCrn.cantidad)
+                };
+
+                $http.post($scope.config.API_URL, JSON.stringify(payload), { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })
+                    .then(function(res) {
+                        $scope.procesandoSolicitud = false;
+                        if(res.data.status === 'success') { 
+                            alert("✅ " + res.data.message); 
+                            $scope.limpiarFormularioCrn();
+                            $scope.sincronizarSistema(); // Refresca las tablas
+                        } else { alert("Error: " + res.data.message); }
+                    }).catch(function(err) { $scope.procesandoSolicitud = false; alert("Fallo de red."); });
+            };
+
+            $scope.guardarMantenimientoCRN = function() {
+                let idSeleccionado = $scope.formMantenimiento.id_seleccionado;
+                let crnDefinitivo = $scope.formMantenimiento.crn_definitivo.replace(/\D/g, ''); // Limpiar a solo números
+                
+                if (!idSeleccionado || crnDefinitivo === "") {
+                    alert("Debe seleccionar una solicitud y escribir un CRN definitivo válido (solo números).");
+                    return;
+                }
+
+                if (!confirm(`¿Confirmas asignar el CRN definitivo ${crnDefinitivo} a esta solicitud?`)) return;
+
+                $scope.procesandoSolicitud = true;
+                let payload = {
+                    accion: 'MANTENIMIENTO_CRN',
+                    usuario: $scope.correoUsuario,
+                    id_movimiento: idSeleccionado,
+                    crn_definitivo: crnDefinitivo
+                };
+
+                $http.post($scope.config.API_URL, JSON.stringify(payload), { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })
+                    .then(function(res) {
+                        $scope.procesandoSolicitud = false;
+                        if(res.data.status === 'success') { 
+                            alert("✅ Mantenimiento guardado correctamente."); 
+                            $scope.formMantenimiento = { id_seleccionado: "", crn_definitivo: "" };
+                            $scope.sincronizarSistema(); 
+                        } else { alert("Error: " + res.data.message); }
+                    }).catch(function(err) { $scope.procesandoSolicitud = false; alert("Fallo de red."); });
+            };
+
+            $scope.exportarExcelGestionCRNs = function() {
+                let data = $filter('filter')($scope.gestionCrnsGlobales, $scope.busquedaCrns).map(r => ({
+                    "ID Solicitud": r.id,
+                    "Estatus": r.estatus,
+                    "CRN Temporal": r.crn_temporal,
+                    "CRN Definitivo": r.crn_definitivo || "PENDIENTE",
+                    "Clave": r.clave,
+                    "Materia": r.materia,
+                    "Departamento": r.departamento,
+                    "Créditos": r.creditos,
+                    "Hrs Semanales": r.horas_semanal,
+                    "Nivel": r.nivel,
+                    "Solicitante (Jefe)": r.solicita,
+                    "Fecha Solicitud": r.fecha_solicitud,
+                    "Atendido por (RH)": r.atendido_rh || "-",
+                    "Fecha Mantenimiento (RH)": r.fecha_rh || "-",
+                    "Seguimiento Actual": r.seguimiento
+                }));
+                
+                if(data.length === 0) { alert("No hay datos."); return; }
+                let ws = XLSX.utils.json_to_sheet(data); 
+                let wb = XLSX.utils.book_new(); 
+                XLSX.utils.book_append_sheet(wb, ws, "Gestión de CRNs"); 
+                XLSX.writeFile(wb, "Reporte_Gestion_CRNs_2027A.xlsx");
             };
 
         });
