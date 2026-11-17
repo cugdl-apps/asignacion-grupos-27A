@@ -1421,7 +1421,7 @@
             // ======================================================================
             // 1. INICIALIZACIÓN Y CONFIGURACIÓN DESDE BÓVEDA 2027A
             // ======================================================================
-            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbyRbW0aSA4B5bAgvsmUwvuBhhhySPwkJf5AvDolsuMVKknsU_13zonm-7lFW39FJ4CbAw/exec";
+            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbxCN8an9UipClRKBe9GtWPAL9IXLZosVebw--Ie17IEZiBrJsXGDSvTJ8ym4VxTttkJwQ/exec";
 
             window.onload = function () {
                 let cacheBuster = "&t=" + new Date().getTime();
@@ -1757,7 +1757,8 @@
                                 programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                 dias_lista: [],
                                 horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
-                                codigo_profesor: a.cod_prof, // <-- CORREGIDO: Muestra el Código, no el ID
+                                codigo_profesor: a.cod_prof, 
+                                id_profesor_bd: a.id_profesor, // <-- NUEVO: ID SECRETO PARA LA BASE DE DATOS
                                 nombre_profesor: a.nom_prof, 
                                 tipo_asignacion: a.tipo_asig || "-", carga_total: 0, 
                                 departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
@@ -1780,7 +1781,8 @@
                                     programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                     dias_lista: [],
                                     horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
-                                    codigo_profesor: a.cod_cubre || (profInfoCubre ? profInfoCubre.codigo : "-"), // <-- CORREGIDO
+                                    codigo_profesor: a.cod_cubre || (profInfoCubre ? profInfoCubre.codigo : "-"), 
+                                    id_profesor_bd: a.id_prof_cubre, // <-- NUEVO: ID SECRETO PARA LA BASE DE DATOS
                                     nombre_profesor: a.nom_cubre, 
                                     tipo_asignacion: "CUBRE DESCARGA", carga_total: 0, 
                                     departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
@@ -2050,21 +2052,35 @@
             };
 
             $scope.desasignarGrupo = function(asig) {
-                let originalCod = asig.codigo_profesor;
-                if(asig.tipo_asignacion === 'CUBRE DESCARGA') {
-                    let originAsig = $scope.asignacionesGlobales.find(a => a.crn == asig.crn && a.tipo_asignacion == 'DESCARGA');
-                    if(originAsig) originalCod = originAsig.codigo_profesor;
-                }
+                if (!confirm("¿Seguro que deseas DESASIGNAR esta materia? Se liberarán todos los horarios (días) vinculados a este CRN.")) return;
+                
+                let idCorrectoBD = asig.id_profesor_bd || asig.codigo_profesor; 
+                let idMateriaCorrecto = asig.id_registro_json || asig.id_materia;
 
-                if(!confirm(`¿Estás seguro de cancelar la asignación del CRN ${asig.crn}? (No se borrará el aula si existe).`)) return;
+                let payloadDocente = { 
+                    accion: 'BAJA_ASIGNACION', 
+                    ciclo_escolar: '2027A', 
+                    usuario: $scope.perfil.correo, 
+                    id_materia: idMateriaCorrecto, 
+                    crn: asig.crn, // <-- NUEVO: ENVIAMOS EL CRN PARA LA BAJA EN BLOQUE
+                    id_profesor: idCorrectoBD 
+                };
+                
                 $scope.cargandoDatos = true; 
-                let payloadDocente = { accion: 'BAJA_ASIGNACION', ciclo_escolar: '2027A', usuario: $scope.perfil.correo, id_materia: asig.id_registro_json, id_profesor: originalCod };
-                $http.post($scope.config.API_URL, JSON.stringify(payloadDocente), { headers: { 'Content-Type': 'text/plain;charset=utf-8' } }).then(function(response) {
-                    if (response.data.status === 'success') { alert("✅ " + response.data.message); $scope.sincronizarSistema(); } 
-                    else { alert("❌ Error: " + response.data.message); $scope.cargandoDatos = false; }
-                }).catch(function(error) {
-                    $scope.cargandoDatos = false; alert("Error de red al intentar desasignar.");
-                });
+
+                $http.post($scope.config.API_URL, JSON.stringify(payloadDocente), { headers: { 'Content-Type': 'text/plain;charset=utf-8' } })
+                    .then(function(res) {
+                        if (res.data && res.data.status === 'success') {
+                            alert("✅ " + res.data.message);
+                            $scope.sincronizarSistema(); 
+                        } else {
+                            $scope.cargandoDatos = false; 
+                            alert("❌ Error del servidor: " + (res.data ? res.data.message : "Respuesta desconocida."));
+                        }
+                    }).catch(function(err) {
+                        $scope.cargandoDatos = false; 
+                        alert("❌ Fallo de red al intentar dar de baja.");
+                    });
             };
 
             // ======================================================================
