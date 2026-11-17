@@ -556,7 +556,7 @@
             <div ng-show="vistaPrincipal == 'profesores'" class="space-y-6">
                 <section class="bg-white p-6 rounded-lg shadow border-t-4 border-indigo-500">
                     <div class="flex justify-between items-center border-b pb-2 mb-4">
-                        <h2 class="text-lg font-bold text-gray-700">Catálogo de Profesores (2026B) y Cargas Efectivas</h2>
+                        <h2 class="text-lg font-bold text-gray-700">Catálogo de Profesores (2027A) y Cargas Efectivas</h2>
                         <div class="flex items-center gap-4">
                             <span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-3 py-1 rounded-full border border-indigo-200">
                                 Total: {{profesoresBD.length}} docentes
@@ -1053,7 +1053,7 @@
                 <div class="flex items-center bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">Dashboard Institucional</h2>
-                        <p class="text-sm text-gray-500">Resumen analítico en tiempo real del ciclo escolar 2026B</p>
+                        <p class="text-sm text-gray-500">Resumen analítico en tiempo real del ciclo escolar 2027A</p>
                     </div>
                 </div>
 
@@ -1093,7 +1093,7 @@
             <div class="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
                 <!-- Header del Modal -->
                 <div class="bg-indigo-700 text-white p-4 rounded-t-lg flex justify-between items-center">
-                    <h3 class="font-bold text-lg">Carga Horaria Desglosada 2026B</h3>
+                    <h3 class="font-bold text-lg">Carga Horaria Desglosada 2027A</h3>
                     <button ng-click="cerrarModalDesglose()" class="text-2xl font-bold hover:text-indigo-200 transition-colors">&times;</button>
                 </div>
                 
@@ -1421,7 +1421,7 @@
             // ======================================================================
             // 1. INICIALIZACIÓN Y CONFIGURACIÓN DESDE BÓVEDA 2027A
             // ======================================================================
-            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbzM-D8WmJpq2ISODc1N2PZchj9Sd8gXKyRxZXH0jmk9m0oIY58TSjW06itW4gI0NuH_8w/exec";
+            const BOVEDA_URL = "https://script.google.com/macros/s/AKfycbyRbW0aSA4B5bAgvsmUwvuBhhhySPwkJf5AvDolsuMVKknsU_13zonm-7lFW39FJ4CbAw/exec";
 
             window.onload = function () {
                 let cacheBuster = "&t=" + new Date().getTime();
@@ -1655,6 +1655,7 @@
                     // 2. Mapeo estructural: Convertimos la tabla "Materias" al formato frontend
                     $scope.catalogoGruposOriginal = resBackend.materias.map(m => ({
                         id: m.id_materia,
+                        semestre: m.semestre,
                         crn: m.crn,
                         clave: m.clave,
                         materia: m.materia,
@@ -1743,20 +1744,21 @@
                         return pBase;
                     });
 
-                    // 6. Agrupación para "Mis Asignaciones"
+                    // 6. Agrupación para "Mis Asignaciones" y Corrección de Códigos Visuales
                     let agrupados = {};
                     $scope.asignacionesGlobales.forEach(a => {
                         let aIdStr = (a.id_materia || "").toString();
                         if (aIdStr === "") return; 
                         if (!agrupados[aIdStr]) {
-                            let profInfo = $scope.profesoresBD.find(p => (p.codigo || "").toString() === (a.id_profesor || "").toString());
+                            let profInfo = $scope.profesoresBD.find(p => (p.id_profesor || "").toString() === (a.id_profesor || "").toString());
                             let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
                             agrupados[aIdStr] = {
                                 crn: a.crn, clave_materia: a.clave, materia: a.materia, 
                                 programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                 dias_lista: [],
                                 horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
-                                codigo_profesor: a.id_profesor, nombre_profesor: a.nom_prof, 
+                                codigo_profesor: a.cod_prof, // <-- CORREGIDO: Muestra el Código, no el ID
+                                nombre_profesor: a.nom_prof, 
                                 tipo_asignacion: a.tipo_asig || "-", carga_total: 0, 
                                 departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
                                 departamento_profesor: profInfo ? profInfo.departamento_adscripcion : '-',
@@ -1771,12 +1773,15 @@
                              let cobKey = aIdStr + "_COB";
                              if (!agrupados[cobKey]) {
                                 let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
+                                let profInfoCubre = $scope.profesoresBD.find(p => (p.id_profesor || "").toString() === (a.id_prof_cubre || "").toString());
+                                
                                 agrupados[cobKey] = {
                                     crn: a.crn, clave_materia: a.clave, materia: a.materia, 
                                     programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                     dias_lista: [],
                                     horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
-                                    codigo_profesor: a.id_prof_cubre, nombre_profesor: a.nom_cubre, 
+                                    codigo_profesor: a.cod_cubre || (profInfoCubre ? profInfoCubre.codigo : "-"), // <-- CORREGIDO
+                                    nombre_profesor: a.nom_cubre, 
                                     tipo_asignacion: "CUBRE DESCARGA", carga_total: 0, 
                                     departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
                                     departamento_profesor: "-",
@@ -1787,6 +1792,20 @@
                              let diaFormateadoCob = a.dias;
                              if(!agrupados[cobKey].dias_lista.includes(diaFormateadoCob) && diaFormateadoCob) agrupados[cobKey].dias_lista.push(diaFormateadoCob);
                         }
+                    });
+                    
+                    $scope.misAsignaciones = Object.values(agrupados).map(obj => {
+                        obj.dias = obj.dias_lista.join(" - ");
+                        return obj;
+                    });
+
+                    // Corrección retroactiva para la tabla visual de Descargas
+                    $scope.descargasGlobales = $scope.descargasGlobales.map(d => {
+                        if (!d.cod_cubre && d.id_prof_cubre) {
+                            let pCov = $scope.profesoresBD.find(p => p.id_profesor == d.id_prof_cubre);
+                            if (pCov) d.cod_cubre = pCov.codigo;
+                        }
+                        return d;
                     });
                     
                     $scope.misAsignaciones = Object.values(agrupados).map(obj => {
@@ -2532,7 +2551,7 @@
                 const { jsPDF } = window.jspdf; const doc = new jsPDF();
                 const construirDocumento = function(imgData) {
                     if(imgData) doc.addImage(imgData, 'PNG', 14, 10, 40, 15); 
-                    doc.setFontSize(14); doc.setTextColor(30, 58, 138); doc.text("Carga horaria Programas Presenciales/Mixtos 2026B", 196, 20, { align: "right" });
+                    doc.setFontSize(14); doc.setTextColor(30, 58, 138); doc.text("Carga horaria Programas Presenciales/Mixtos 2027A", 196, 20, { align: "right" });
                     doc.setFontSize(11); doc.setTextColor(50, 50, 50); doc.setFont("helvetica", "bold"); doc.text(`Profesor(a):`, 14, 35); doc.setFont("helvetica", "normal"); doc.text(profesor.profesor, 38, 35); doc.setFont("helvetica", "bold"); doc.text(`Código:`, 14, 42); doc.setFont("helvetica", "normal"); doc.text(String(profesor.codigo), 30, 42); doc.setFont("helvetica", "bold"); doc.text(`Categoría:`, 80, 42); doc.setFont("helvetica", "normal"); doc.text(profesor.categoria || '-', 102, 42); doc.setFont("helvetica", "bold"); doc.text(`Departamento:`, 14, 49); doc.setFont("helvetica", "normal"); doc.text(profesor.departamento_adscripcion || '-', 43, 49); 
                     
                     doc.setFont("helvetica", "bold"); doc.text(`Carga Total Asignada:`, 14, 56); 
