@@ -1700,7 +1700,7 @@
                             todosLosProfes.push({ id_profesor: pe.codigo, codigo: pe.codigo, profesor: nombreEstructurado, categoria: pe.categoria, origen: pe.tipo, departamento_adscripcion: "-" }); 
                         });
                     }
-                                        
+
                     // 4. Filtrar Grupos Libres (Solo SIN ASIGNAR para la vista del frontend)
                     let idsAsignados = $scope.asignacionesGlobales.map(a => (a.id_materia || "").toString().trim());
                     let crnsAsignados = $scope.asignacionesGlobales.map(a => (a.crn || "").toString().trim());
@@ -1868,24 +1868,33 @@
             
             $scope.realizarCruceMaestroAulas = function() {
                 $scope.tablaCruceAulas = $scope.catalogoGruposOriginal.map(g => {
-                    let gIdStr = (g.id || "").toString();
-                    let diasMateria = $scope.formatearDiasStr(g).trim(); // Limpiamos espacios
+                    let gIdStr = (g.id || "").toString().trim();
+                    let gCrnStr = (g.crn || "").toString().trim();
+                    let diasMateria = $scope.formatearDiasStr(g).trim();
 
-                    let asigDoc = $scope.asignacionesGlobales.find(ad => (ad.id_materia || "").toString() === gIdStr);
+                    // Búsqueda protegida: nunca compara textos vacíos
+                    let asigDoc = (gIdStr !== "" ? $scope.asignacionesGlobales.find(ad => (ad.id_materia || "").toString().trim() === gIdStr) : null)
+                               || (gCrnStr !== "" ? $scope.asignacionesGlobales.find(ad => (ad.crn || "").toString().trim() === gCrnStr) : null);
                     
-                    let asigAula = $scope.aulasAsignadasServer.find(aa => 
-                        (aa.id_materia || "").toString() === gIdStr && 
-                        (aa.dias || "").trim() === diasMateria
-                    );
+                    let asigAula = $scope.aulasAsignadasServer.find(aa => {
+                        let aaId = (aa.id_materia || "").toString().trim();
+                        let aaCrn = (aa.crn || "").toString().trim();
+                        let coincideMateria = (gIdStr !== "" && aaId === gIdStr) || (gCrnStr !== "" && aaCrn === gCrnStr);
+                        return coincideMateria && (aa.dias || "").trim() === diasMateria;
+                    });
 
                     let c_hIni = asigDoc ? asigDoc.ini : g.hora_inicio;
                     let c_hFin = asigDoc ? asigDoc.fin : g.hora_fin;
 
                     let cod_prof_final = null;
                     if (asigDoc) {
-                        let profId = asigDoc.tipo_asig === 'DESCARGA' ? asigDoc.id_prof_cubre : asigDoc.id_profesor;
-                        let pData = $scope.profesoresBD.find(p => p.id_profesor == profId);
-                        cod_prof_final = pData ? pData.codigo : profId; // Muestra el visual
+                        if (asigDoc.tipo_asig === 'DESCARGA') {
+                            let pData = $scope.profesoresBD.find(p => (p.id_profesor || "").toString().trim() === (asigDoc.id_prof_cubre || "").toString().trim());
+                            cod_prof_final = asigDoc.cod_cubre || (pData ? pData.codigo : asigDoc.id_prof_cubre);
+                        } else {
+                            let pData = $scope.profesoresBD.find(p => (p.id_profesor || "").toString().trim() === (asigDoc.id_profesor || "").toString().trim());
+                            cod_prof_final = asigDoc.cod_prof || (pData ? pData.codigo : asigDoc.id_profesor);
+                        }
                     }
                     let nom_prof_final = asigDoc ? (asigDoc.tipo_asig === 'DESCARGA' ? asigDoc.nom_cubre : asigDoc.nom_prof) : null;
                     let tipo_final = asigDoc ? (asigDoc.tipo_asig === 'DESCARGA' ? "CUBRE DESCARGA" : asigDoc.tipo_asig) : null;
@@ -1903,12 +1912,11 @@
                         codigo_profesor: cod_prof_final, 
                         nombre_profesor: nom_prof_final, 
                         tipo_asignacion: tipo_final,
-                        nomenclatura_aula: asigAula ? asigAula.aula : null, // <-- AQUÍ ESTÁ LA CORRECCIÓN
+                        nomenclatura_aula: asigAula ? asigAula.aula : null,
                         espacio_aula: asigAula ? asigAula.espacio : null,
                         es_presencial: $scope.esPresencialStr(g),
                         tipo_aula: (g.tipo_aula || g.TIPO_AULA || "NO ESPECIFICADO").toString().toUpperCase()
                     };
-
                 });
                 $scope.totalPresenciales = $scope.tablaCruceAulas.filter(x => x.es_presencial).length;
                 $scope.materiasConAula = $scope.tablaCruceAulas.filter(x => x.nomenclatura_aula).length;
@@ -2424,10 +2432,11 @@
             // ======================================================================
             $scope.exportarExcelGrupos = function() {
                 let filtrados = $filter('filter')($scope.catalogoGruposOriginal, $scope.filtroGeneral);
-                let crnsAsignados = $scope.asignacionesGlobales.map(a => (a.crn || "").toString());
+                let crnsAsignados = $scope.asignacionesGlobales.map(a => (a.crn || "").toString().trim());
 
                 let data = filtrados.map(g => {
-                    let crnStr = (g.crn || "").toString();
+                    let gIdStr = (g.id || "").toString().trim();
+                    let crnStr = (g.crn || "").toString().trim();
 
                     // Lógica para determinar los días de impartición
                     let diasArr = [];
@@ -2438,11 +2447,14 @@
                     if (g.v) diasArr.push("V");
                     if (g.s) diasArr.push("S");
                     let diasFinal = diasArr.join(", ") || "N/A";
+                    let horarioFinal = $scope.formatHoraLimpia(g.hora_inicio) + " - " + $scope.formatHoraLimpia(g.hora_fin);
 
-                    // Buscar el registro pre-procesado en la tabla de cruce maestro
-                    let cruceItem = $scope.tablaCruceAulas.find(c => c.id_registro_json === g.id);
+                    // Búsqueda segura en la tabla de cruce maestro (por ID no vacío o por CRN + Días + Horario)
+                    let cruceItem = (gIdStr !== "" ? $scope.tablaCruceAulas.find(c => (c.id_registro_json || "").toString().trim() === gIdStr) : null)
+                                 || (crnStr !== "" ? $scope.tablaCruceAulas.find(c => (c.crn || "").toString().trim() === crnStr && (c.dias || "").trim() === diasFinal && (c.horario || "").trim() === horarioFinal) : null)
+                                 || (crnStr !== "" ? $scope.tablaCruceAulas.find(c => (c.crn || "").toString().trim() === crnStr) : null);
                     
-                    // Valores por defecto por si el cruce maestro no ha cargado (seguridad)
+                    // Valores por defecto
                     let codProf = "-";
                     let nomProf = "Sin Asignar";
                     let tipoAsig = "-";
@@ -2469,11 +2481,10 @@
                         "Programa Educativo": g.programa_educativo, 
                         "Carga (Hrs)": g.carga_horaria, 
                         "Día": diasFinal,
-                        "Horario": $scope.formatHoraLimpia(g.hora_inicio) + " - " + $scope.formatHoraLimpia(g.hora_fin), 
+                        "Horario": horarioFinal, 
                         "Cupo": g.cupo, 
                         "Departamento Materia": g.departamento, 
                         "Estado Actual": crnsAsignados.includes(crnStr) ? "Asignado" : "Sin asignar",
-                        // --- CAMPOS INTEGRADOS DEL REPORTE DE AULAS ---
                         "Código Prof.": codProf,
                         "Profesor Asignado": nomProf,
                         "Tipo Asignación": tipoAsig,
@@ -2486,8 +2497,8 @@
                 if(data.length === 0) { alert("No hay datos para exportar."); return; }
                 let ws = XLSX.utils.json_to_sheet(data); 
                 let wb = XLSX.utils.book_new(); 
-                XLSX.utils.book_append_sheet(wb, ws, "Catálogo 2026B"); 
-                XLSX.writeFile(wb, "Catalogo_Grupos_Estado_2026B.xlsx");
+                XLSX.utils.book_append_sheet(wb, ws, "Catálogo 2027A"); 
+                XLSX.writeFile(wb, "Catalogo_Grupos_Estado_2027A.xlsx");
             };
 
             $scope.exportarExcelProfesores = function() {
