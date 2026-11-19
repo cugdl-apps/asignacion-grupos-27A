@@ -1671,6 +1671,7 @@
                         departamento: (m.departamento_materia || m.departamento || "").toString().trim(),
                         tipo_aula: m.tipo_espacio,
                         cupo: m.cupo,
+                        estatus: (m.estatus || "").toString().trim().toUpperCase(), // <-- AGREGAR ESTA LÍNEA
                         // Convertir la columna DIA a booleanos para que funcionen los filtros visuales intactos
                         l: m.dia && m.dia.includes('L') ? 'L' : '',
                         m: m.dia && m.dia.includes('M') ? 'M' : '',
@@ -1699,11 +1700,18 @@
                             todosLosProfes.push({ id_profesor: pe.codigo, codigo: pe.codigo, profesor: nombreEstructurado, categoria: pe.categoria, origen: pe.tipo, departamento_adscripcion: "-" }); 
                         });
                     }
+                                        
+                    // 4. Filtrar Grupos Libres (Solo SIN ASIGNAR para la vista del frontend)
+                    let idsAsignados = $scope.asignacionesGlobales.map(a => (a.id_materia || "").toString().trim());
+                    let crnsAsignados = $scope.asignacionesGlobales.map(a => (a.crn || "").toString().trim());
 
-                    // 4. Filtrar Grupos Libres
-                    let idsAsignados = $scope.asignacionesGlobales.map(a => (a.id_materia || "").toString());
-                    $scope.registrosBD = $scope.catalogoGruposOriginal.filter(g => !idsAsignados.includes((g.id || "").toString()));
-                    
+                    $scope.registrosBD = $scope.catalogoGruposOriginal.filter(g => {
+                        let idStr = (g.id || "").toString().trim();
+                        let crnStr = (g.crn || "").toString().trim();
+                        let estaEnAsignaciones = idsAsignados.includes(idStr) || (crnStr !== "" && crnsAsignados.includes(crnStr));
+                        let esSinAsignar = (g.estatus === "" || g.estatus === "SIN ASIGNAR");
+                        return !estaEnAsignaciones && esSinAsignar;
+                    });
                     // 5. Calcular Cargas Efectivas iterando el JSON relacional
                     $scope.profesoresBD = todosLosProfes.map(pBase => {
                         let baseIdStr = (pBase.id_profesor || "").toString(); // <-- LA LÓGICA DE CARGA USA EL ID INTERNO
