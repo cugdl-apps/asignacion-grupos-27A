@@ -1542,10 +1542,14 @@
                 if (!$scope.perfil || !$scope.perfil.rol) return false;
                 if ($scope.perfil.rol === 'ADMIN') return true;
                 if ($scope.perfil.rol === 'ESCOLAR') return false; 
-                const nombreDeptoBD = item.departamento || item.departamento_materia;
+                const nombreDeptoBD = $scope.normalizarTexto(item.departamento || item.departamento_materia);
                 let idDeptoEncontrado = null;
                 angular.forEach($scope.rolesData.departamentos_diccionario, function(val, key) {
-                    if (val.alias_bd.includes(nombreDeptoBD) || val.nombre_oficial === nombreDeptoBD) { idDeptoEncontrado = key; }
+                    let aliasNorm = (val.alias_bd || []).map(a => $scope.normalizarTexto(a));
+                    let oficialNorm = $scope.normalizarTexto(val.nombre_oficial);
+                    if (aliasNorm.includes(nombreDeptoBD) || oficialNorm === nombreDeptoBD) { 
+                        idDeptoEncontrado = key; 
+                    }
                 });
                 return $scope.perfil.departamentos_acceso.includes(idDeptoEncontrado) || $scope.perfil.departamentos_acceso.includes("TODOS");
             };
@@ -1664,7 +1668,7 @@
                         carga_horaria: m.carga_horaria,
                         hora_inicio: m.hora_inicio,
                         hora_fin: m.hora_termino,
-                        departamento: m.departamento_materia,
+                        departamento: (m.departamento_materia || m.departamento || "").toString().trim(),
                         tipo_aula: m.tipo_espacio,
                         cupo: m.cupo,
                         // Convertir la columna DIA a booleanos para que funcionen los filtros visuales intactos
@@ -1747,34 +1751,49 @@
                     // 6. Agrupación para "Mis Asignaciones" y Corrección de Códigos Visuales
                     let agrupados = {};
                     $scope.asignacionesGlobales.forEach(a => {
-                        let aIdStr = (a.id_materia || "").toString();
-                        if (aIdStr === "") return; 
-                        if (!agrupados[aIdStr]) {
-                            let profInfo = $scope.profesoresBD.find(p => (p.id_profesor || "").toString() === (a.id_profesor || "").toString());
-                            let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
-                            agrupados[aIdStr] = {
+                        let aIdStr = (a.id_materia || "").toString().trim();
+                        let aCrnStr = (a.crn || "").toString().trim();
+                        let aClaveStr = (a.clave || "").toString().trim().toUpperCase();
+                        if (aIdStr === "" && aCrnStr === "") return;
+
+                        // Búsqueda en cascada: 1) ID_MATERIA, 2) CRN
+                        let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString().trim() === aIdStr)
+                                    || $scope.catalogoGruposOriginal.find(g => (g.crn || "").toString().trim() === aCrnStr);
+
+                        // Respaldo 3: Si aún no hay departamento, buscar por CLAVE en Catalogo_Materias
+                        let deptoResuelto = (infoBase && infoBase.departamento) ? infoBase.departamento : "";
+                        if (!deptoResuelto && aClaveStr) {
+                            let catMat = ($scope.catalogoMateriasGeneral || []).find(cm => (cm.clave || "").toString().trim().toUpperCase() === aClaveStr);
+                            if (catMat && catMat.departamento) deptoResuelto = catMat.departamento.toString().trim();
+                        }
+                        if (!deptoResuelto) deptoResuelto = "Desconocido";
+
+                        let keyAgrup = aIdStr || aCrnStr;
+
+                        if (!agrupados[keyAgrup]) {
+                            let profInfo = $scope.profesoresBD.find(p => (p.id_profesor || "").toString().trim() === (a.id_profesor || "").toString().trim());
+                            agrupados[keyAgrup] = {
                                 crn: a.crn, clave_materia: a.clave, materia: a.materia, 
                                 programa_educativo: infoBase ? infoBase.programa_educativo : "-",
                                 dias_lista: [],
                                 horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
                                 codigo_profesor: a.cod_prof, 
-                                id_profesor_bd: a.id_profesor, // <-- NUEVO: ID SECRETO PARA LA BASE DE DATOS
+                                id_profesor_bd: a.id_profesor,
                                 nombre_profesor: a.nom_prof, 
                                 tipo_asignacion: a.tipo_asig || "-", carga_total: 0, 
-                                departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
+                                departamento_materia: deptoResuelto, 
                                 departamento_profesor: profInfo ? profInfo.departamento_adscripcion : '-',
                                 id_registro_json: a.id_materia
                             };
                         }
-                        agrupados[aIdStr].carga_total += parseFloat(a.carga) || 0;
+                        agrupados[keyAgrup].carga_total += parseFloat(a.carga) || 0;
                         let diaFormateado = a.dias;
-                        if(!agrupados[aIdStr].dias_lista.includes(diaFormateado) && diaFormateado) agrupados[aIdStr].dias_lista.push(diaFormateado);
+                        if(!agrupados[keyAgrup].dias_lista.includes(diaFormateado) && diaFormateado) agrupados[keyAgrup].dias_lista.push(diaFormateado);
 
                         if(a.tipo_asig === 'DESCARGA' && a.id_prof_cubre) {
-                             let cobKey = aIdStr + "_COB";
+                             let cobKey = keyAgrup + "_COB";
                              if (!agrupados[cobKey]) {
-                                let infoBase = $scope.catalogoGruposOriginal.find(g => (g.id || "").toString() === aIdStr);
-                                let profInfoCubre = $scope.profesoresBD.find(p => (p.id_profesor || "").toString() === (a.id_prof_cubre || "").toString());
+                                let profInfoCubre = $scope.profesoresBD.find(p => (p.id_profesor || "").toString().trim() === (a.id_prof_cubre || "").toString().trim());
                                 
                                 agrupados[cobKey] = {
                                     crn: a.crn, clave_materia: a.clave, materia: a.materia, 
@@ -1782,10 +1801,10 @@
                                     dias_lista: [],
                                     horario: $scope.formatHoraLimpia(a.ini) + " - " + $scope.formatHoraLimpia(a.fin),
                                     codigo_profesor: a.cod_cubre || (profInfoCubre ? profInfoCubre.codigo : "-"), 
-                                    id_profesor_bd: a.id_prof_cubre, // <-- NUEVO: ID SECRETO PARA LA BASE DE DATOS
+                                    id_profesor_bd: a.id_prof_cubre,
                                     nombre_profesor: a.nom_cubre, 
                                     tipo_asignacion: "CUBRE DESCARGA", carga_total: 0, 
-                                    departamento_materia: infoBase ? infoBase.departamento : "Desconocido", 
+                                    departamento_materia: deptoResuelto, 
                                     departamento_profesor: "-",
                                     id_registro_json: a.id_materia
                                 };
@@ -1794,6 +1813,20 @@
                              let diaFormateadoCob = a.dias;
                              if(!agrupados[cobKey].dias_lista.includes(diaFormateadoCob) && diaFormateadoCob) agrupados[cobKey].dias_lista.push(diaFormateadoCob);
                         }
+                    });
+
+                    // Corrección retroactiva para la tabla visual de Descargas
+                    $scope.descargasGlobales = $scope.descargasGlobales.map(d => {
+                        if (!d.cod_cubre && d.id_prof_cubre) {
+                            let pCov = $scope.profesoresBD.find(p => p.id_profesor == d.id_prof_cubre);
+                            if (pCov) d.cod_cubre = pCov.codigo;
+                        }
+                        return d;
+                    });
+                    
+                    $scope.misAsignaciones = Object.values(agrupados).map(obj => {
+                        obj.dias = obj.dias_lista.join(" - ");
+                        return obj;
                     });
                     
                     $scope.misAsignaciones = Object.values(agrupados).map(obj => {
